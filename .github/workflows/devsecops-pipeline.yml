@@ -40,7 +40,7 @@ jobs:
 
 
 
-              # Verificar Quality Gate de SonarCloud
+    # Verificar Quality Gate de SonarCloud
     - name: Check SonarCloud Quality Gate
       run: |
         sleep 30
