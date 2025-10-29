@@ -35,3 +35,20 @@ jobs:
       with:
         args: >
           -Dproject.settings=sast-config.properties
+ #####################################3
+ # Analisis SCA
+ #
+- name: OWASP Dependency Check SCA
+      uses: dependency-check/Dependency-Check_Action@main
+      env:
+        PROJECT_SETTINGS: sca-config.properties
+      with:
+        project: 'devsecops-laboratorio'
+        path: '.'
+        format: 'HTML'
+        args: >
+          --scan .
+          --out reports/
+          --failOnCVSS 5
+          --enableRetired
+
