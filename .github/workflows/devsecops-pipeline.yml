@@ -1,16 +1,17 @@
-name: DevSecOps Pipeline - Fase 1 SAST
+name: DevSecOps Complete Pipeline
 
 on:
   push:
-    branches: [ test, main ]
+    branches: [ main, test ]
   pull_request:
-    branches: [ test, main ]
+    branches: [ main, test ]
 
 jobs:
-  security-sast:
-    name: SAST Security Scan
+  # FASE 1: SAST + SCA
+  security-analysis:
+    name: SAST and SCA Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -26,14 +27,124 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    # SAST con SonarCloud para Node.js
-    - name: SonarCloud Scan
+    # SAST con SonarCloud
+    - name: SonarCloud SAST Scan
       uses: SonarSource/sonarcloud-github-action@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
         args: >
-          -Dsonar.projectKey=franjvp_devsecops-laboratorio
-          -Dsonar.organization=franjvp-devsecops
-          -Dsonar.sources=.
+          -Dproject.settings=sast-config.properties
+
+
+
+
+    # Verificar Quality Gate de SonarCloud
+    - name: Check SonarCloud Quality Gate
+      run: |
+        sleep 30
+        PROJECT_KEY="franjvp_devsecops-laboratorio"
+        SONAR_URL="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$PROJECT_KEY"
+        RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$SONAR_URL")
+        if echo "$RESPONSE" | grep -q '"status":"ERROR"'; then
+          echo "SAST FAILED - Vulnerabilidades encontradas"
+          exit 1
+        elif echo "$RESPONSE" | grep -q '"status":"OK"'; then
+          echo "SAST PASSED - Sin vulnerabilidades bloqueantes"
+        else
+          exit 1
+        fi
+
+
+
+    # SCA con OWASP Dependency Check
+    - name: OWASP Dependency Check SCA
+      if: always()
+      uses: dependency-check/Dependency-Check_Action@main
+      env:
+        PROJECT_SETTINGS: sca-config.properties
+      with:
+        project: 'devsecops-laboratorio'
+        path: '.'
+        format: 'HTML'
+        args: >
+          --scan .
+          --out reports/
+          --failOnCVSS 5
+          --enableRetired
+
+    # Subir reportes SCA
+    - name: Upload SCA Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: sca-security-reports
+        path: reports/
+        retention-days: 30
+
+  # FASE 2: DOCKER BUILD (depende de que pase security)
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: security-analysis  # ← Espera a que termine security
+    if: always()  # ← AGREGAR ESTA LÍNEA para que se realice siempre
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    # Construir imagen Docker
+    - name: Build Docker image
+      run: |
+        docker build -t devsecops-app:${{ github.sha }} .
+        docker tag devsecops-app:${{ github.sha }} devsecops-app:latest
+
+    # Verificar imagen
+    - name: Verify Docker image
+      run: |
+        echo "SUCCESS Imagen Docker construida:"
+        docker images devsecops-app
+        ##########################################
+        #
+  # FASE 3: CONTAINER SECURITY (depende de docker build)
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Construir imagen (mismo que antes)
+    - name: Build Docker image for scanning
+      run: |
+        docker build -t devsecops-app:${{ github.sha }} .
+
+    # SECURITY: Escanear imagen con Trivy
+    - name: Scan image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'devsecops-app:${{ github.sha }}'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+
+    # Forzar fallo si hay vulnerabilidades
+    - name: Fail on vulnerabilities
+      run: |
+        if [ -f "trivy-results.sarif" ]; then
+          echo "Resultados de Trivy:"
+          VULNERABILITIES=$(grep -c '"level":"error"' trivy-results.sarif || true)
+          if [ "$VULNERABILITIES" -gt "0" ]; then
+            echo "Se encontraron $VULNERABILITIES vulnerabilidades. Fallando pipeline..."
+            exit 1
+          else
+            echo "No se encontraron vulnerabilidades críticas/altas/medias"
+          fi
+        fi
