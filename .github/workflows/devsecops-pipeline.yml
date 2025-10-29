@@ -34,6 +34,6 @@ jobs:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
         args: >
-          -Dsonar.projectKey=devsecops-laboratorio
+          -Dsonar.projectKey=franjvp_devsecops-laboratorio
           -Dsonar.organization=franjvp-devsecops
           -Dsonar.sources=.
