@@ -37,6 +37,27 @@ jobs:
         args: >
           -Dproject.settings=sast-config.properties
 
+
+
+
+              # Verificar Quality Gate de SonarCloud
+    - name: Check SonarCloud Quality Gate
+      run: |
+        sleep 30
+        PROJECT_KEY="franjvp_devsecops-laboratorio"
+        SONAR_URL="https://sonarcloud.io/api/qualitygates/project_status?projectKey=$PROJECT_KEY"
+        RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$SONAR_URL")
+        if echo "$RESPONSE" | grep -q '"status":"ERROR"'; then
+          echo "SAST FAILED - Vulnerabilidades encontradas"
+          exit 1
+        elif echo "$RESPONSE" | grep -q '"status":"OK"'; then
+          echo "SAST PASSED - Sin vulnerabilidades bloqueantes"
+        else
+          exit 1
+        fi
+
+
+
     # SCA con OWASP Dependency Check
     - name: OWASP Dependency Check SCA
       uses: dependency-check/Dependency-Check_Action@main
@@ -117,12 +138,12 @@ jobs:
     - name: Fail on vulnerabilities
       run: |
         if [ -f "trivy-results.sarif" ]; then
-          echo "📊 Resultados de Trivy:"
+          echo "Resultados de Trivy:"
           VULNERABILITIES=$(grep -c '"level":"error"' trivy-results.sarif || true)
           if [ "$VULNERABILITIES" -gt "0" ]; then
-            echo "❌ Se encontraron $VULNERABILITIES vulnerabilidades. Fallando pipeline..."
+            echo "Se encontraron $VULNERABILITIES vulnerabilidades. Fallando pipeline..."
             exit 1
           else
-            echo "✅ No se encontraron vulnerabilidades críticas/altas/medias"
+            echo "No se encontraron vulnerabilidades críticas/altas/medias"
           fi
         fi
