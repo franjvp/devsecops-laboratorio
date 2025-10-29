@@ -37,3 +37,4 @@ jobs:
           -Dsonar.projectKey=franjvp_devsecops-laboratorio
           -Dsonar.organization=franjvp-devsecops
           -Dsonar.sources=.
+          -Dsonar.branch.name=main
