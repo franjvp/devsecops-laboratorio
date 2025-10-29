@@ -52,4 +52,11 @@ jobs:
           --failOnCVSS 5
           --enableRetired
 
-
+ # SUBIR REPORTES SCA
+    - name: Upload SCA Reports
+      uses: actions/upload-artifact@v4
+      if: always()  # ← Esto sube el reporte aunque el pipeline falle
+      with:
+        name: sca-security-reports
+        path: reports/
+        retention-days: 30
