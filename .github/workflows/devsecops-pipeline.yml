@@ -35,5 +35,5 @@ jobs:
       with:
         args: >
           -Dsonar.projectKey=franjvp_devsecops-laboratorio
-          -Dsonar.organization=fvega-github-actions-devsecops
+          -Dsonar.organization=franjvp-devsecops
           -Dsonar.sources=.
