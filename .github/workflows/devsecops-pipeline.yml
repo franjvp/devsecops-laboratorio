@@ -2,7 +2,7 @@ name: DevSecOps Pipeline - Fase 1 SAST
 
 on:
   push:
-    branches: [ test, mian ]
+    branches: [ test, main ]
   pull_request:
     branches: [ test, main ]
 
